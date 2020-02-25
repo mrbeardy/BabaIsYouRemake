@@ -4,16 +4,14 @@ using UnityEngine;
 
 public class Moveable : MonoBehaviour
 {
-    public GameObject player;
-    public Sprite changeSpriteTo;
+    // TODO: Branch off from this code and create a Pushable property
+
+    public float moveSpeed = 15f;
 
     private static float CLOSENESS_THRESHOLD = .03f;
     private static Vector3 PIVOT_OFFSET = new Vector3(.5f, -.5f, 0f);
 
     private Vector3 m_TargetPosition;
-    private float m_MoveSpeed = 20f;
-
-    private bool m_HasMoved = false;
 
     // Start is called before the first frame update
     void Awake()
@@ -31,45 +29,62 @@ public class Moveable : MonoBehaviour
         return transform.position == m_TargetPosition;
     }
 
-    public void AttemptMove(Vector2 direction, float speed)
+    public bool AttemptMove(Vector2 direction)
     {
-        m_HasMoved = true;
+        // if we're already moving...
+        if (!IsOnTargetPosition()) return false;
 
-        Debug.Log($"{name}: attempting to move in direction {direction} at speed {speed}");
+        // TODO: Add in throttling/cooldown to avoid instances where button is held down
+        //       against a Stoppable and AttemptMove runs more than it needs to.
 
-        // TODO: Add fallback for default speed
-        m_MoveSpeed = speed;
-        m_TargetPosition = transform.position + (Vector3) direction;
+        Vector3 desiredPosition = transform.position + (Vector3)direction;
 
-        // TODO: Look for other Moveables, and attempt to move them also
-        Collider2D[] hits = Physics2D.OverlapBoxAll(m_TargetPosition + PIVOT_OFFSET, new Vector2(.2f, .2f), 0f);
+        Collider2D[] hits = Physics2D.OverlapBoxAll(desiredPosition + PIVOT_OFFSET, new Vector2(.2f, .2f), 0f);
 
         foreach (Collider2D hit in hits)
         {
+            // TODO: Check if the stoppable is "enabled" or not
+            if (hit.GetComponent<Stoppable>() != null)
+            {
+                Debug.Log($"{name}: hit a Stoppable, stopping.");
+
+                return false;
+            }
+
             Moveable moveable = hit.GetComponent<Moveable>();
 
             if (moveable != null)
             {
-                moveable.AttemptMove(direction, speed);
+                Debug.Log($"{name}: hit a Moveable ({moveable.name}), telling it to AttemptMove in direction {direction}.");
+
+                if (!moveable.AttemptMove(direction))
+                {
+                    Debug.Log($"{name}: {moveable.name} couldn't move, stopping.");
+
+                    return false;
+                }
             }
         }
+
+        m_TargetPosition = transform.position + (Vector3)direction;
+
+        Debug.Log($"{name}: Moving in direction {direction} at speed {moveSpeed}.");
+
+        return true;
     }
 
-    // Update is called once per frame
     void Update()
     {
+        if (IsOnTargetPosition()) return;
+
         if (IsCloseEnoughToTargetPosition())
         {
             transform.position = m_TargetPosition;
-
-            if (player != null && transform.position.y == 3)
-            {
-                player.GetComponent<SpriteRenderer>().sprite = changeSpriteTo;
-            }
         }
         else
         {
-            transform.position = Vector2.Lerp(transform.position, m_TargetPosition, Time.deltaTime * m_MoveSpeed);
+            // TODO: replace with tween calculation to more accurately control easing formula
+            transform.position = Vector2.Lerp(transform.position, m_TargetPosition, Time.deltaTime * moveSpeed);
         }
     }
 
